@@ -3,7 +3,7 @@ This is a list of various files that i may use during any project management.
 
 It consists of:
 - Shell script files
-- Mardown files
+- Markdown files
 - Source code files
 - Text files
 - ...

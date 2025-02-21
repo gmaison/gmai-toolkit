@@ -1,0 +1,32 @@
+#!/bin/zsh
+# set -x  # Enable debug mode
+
+echo "Starting pre-commit hook..."
+
+
+# Get project root
+echo "Getting project root..."
+PROJECT_ROOT=$(git rev-parse --show-toplevel)
+echo "Project root: $PROJECT_ROOT"
+
+# ************************************************************
+#
+# Generating knowledge base for "AI Architect" agen
+#
+# ************************************************************
+
+KB_SCRIPT="$PROJECT_ROOT/documentation/knowledge.sh"
+echo "Knowledge script path: $KB_SCRIPT"
+
+echo "Executing knowledge base generation script"
+if [ -f "$KB_SCRIPT" ]; then
+    echo "Found knowledge script, making it executable..."
+    chmod +x "$KB_SCRIPT"
+    echo "Executing knowledge script..."
+    "$KB_SCRIPT" || { echo "Knowledge script failed"; exit 1; }
+else
+    echo "Documentation script not found at: $KB_SCRIPT"
+fi
+
+
+echo "Pre-commit hook completed successfully"

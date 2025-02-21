@@ -1,0 +1,4 @@
+# Add files to include in the documentation
+# Example:
+# .cursor/rules/*.mdc
+# apps/backend/package.json

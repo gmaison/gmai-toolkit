@@ -243,7 +243,7 @@ fi
 if [ ! -f "$KNOWLEDGE_LIST" ]; then
     # Create knowledge.txt if it doesn't exist
     touch "$KNOWLEDGE_LIST"
-    echo "# Add files to include in the documentation" > "$KNOWLEDGE_LIST"
+    echo "# Specific files to include in the documentation" > "$KNOWLEDGE_LIST"
     echo "# Example:" >> "$KNOWLEDGE_LIST"
     echo "# .cursor/rules/*.mdc" >> "$KNOWLEDGE_LIST"
     echo "# apps/backend/package.json" >> "$KNOWLEDGE_LIST"

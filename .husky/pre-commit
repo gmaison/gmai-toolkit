@@ -16,7 +16,7 @@ echo "Project root: $PROJECT_ROOT"
 #
 # ************************************************************
 
-KB_SCRIPT="$PROJECT_ROOT/$KBSCRIPTDIR/knowledge.sh"
+KB_SCRIPT="$PROJECT_ROOT/$KB_SCRIPTDIR/knowledge.sh"
 echo "Knowledge script path: $KB_SCRIPT"
 
 echo "Executing knowledge base generation script"

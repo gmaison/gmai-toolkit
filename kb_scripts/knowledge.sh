@@ -447,8 +447,8 @@ process_rules
 #fi
 
 
+print_header "📦 Processing Additional Files"
 if [ -f "$KNOWLEDGE_LIST" ]; then
-    print_header "📦 Processing Additional Files"
     printf "\n## Additional Files\n\n" >> "$OUTPUT_FILE"
     printf "> ⚠️ **IMPORTANT**: These files must be taken very seriously as they represent the latest up-to-date versions of our codebase. You MUST rely on these versions and their content imperatively.\n\n" >> "$OUTPUT_FILE"
     
@@ -463,9 +463,9 @@ if [ -f "$KNOWLEDGE_LIST" ]; then
     done < "$KNOWLEDGE_LIST"
 fi
 
+print_header "🌳 Project Structure"
 # Add project structure at the end
 if [ -d "$PROJECT_ROOT" ]; then
-    print_header "🌳 Project Structure"
     {
         printf "\n### Project Structure\n\n"
         printf "````text\n"

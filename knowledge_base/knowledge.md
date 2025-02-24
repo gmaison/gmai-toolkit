@@ -1,5 +1,5 @@
 ---
-date: 2025-02-24 16:43:36
+date: 2025-02-24 16:44:44
 ---
 
 # Project Specifications "Knowledge Base"
@@ -20,23 +20,23 @@ It might not be update to date, always refer to code as source of truth.
 
 text
 .
-├── LICENSE
-├── README.md
-├── documentation
-├── kb_scripts
-│   └── knowledge.sh
-├── knowledge_base
-│   ├── knowledge.md
-│   ├── knowledge.txt
-│   └── knowledge_header.md
-├── node_modules
-│   └── husky -> .pnpm/husky@8.0.3/node_modules/husky
-├── package-lock.json
-├── package.json
-└── pnpm-lock.yaml
+|-- LICENSE
+|-- README.md
+|-- documentation
+|-- kb_scripts
+|   `-- knowledge.sh
+|-- knowledge_base
+|   |-- knowledge.md
+|   |-- knowledge.txt
+|   `-- knowledge_header.md
+|-- node_modules
+|   `-- husky -> .pnpm/husky@8.0.3/node_modules/husky
+|-- package-lock.json
+|-- package.json
+`-- pnpm-lock.yaml
 
 6 directories, 9 files
 
 
 
-2025-02-24 16:43:36
+2025-02-24 16:44:44

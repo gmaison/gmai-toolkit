@@ -16,6 +16,9 @@ KB_FILENAME="knowledge.md"
 RELATIVE_KB_DIR="knowledge_base"
 RELATIVE_OUTPUT_FILE="$RELATIVE_KB_DIR/$KB_FILENAME"
 
+# Add this near your other configuration variables
+IGNORE_FILE="$SCRIPT_DIR/.kbignore"
+
 KB_DIR="$PROJECT_ROOT/$RELATIVE_KB_DIR"
 OUTPUT_FILE="$KB_DIR/$KB_FILENAME"
 
@@ -68,6 +71,36 @@ get_file_extension() {
     fi
 }
 
+should_exclude() {
+    local file_path="$1"
+    local excluded=false
+    
+    # If ignore file doesn't exist, nothing is excluded
+    if [ ! -f "$IGNORE_FILE" ]; then
+        return 1
+    fi
+    
+    while IFS= read -r pattern; do
+        # Skip empty lines and comments
+        if [ ! -z "$pattern" ] && [[ ! "$pattern" =~ ^#.*$ ]]; then
+            # Trim whitespace
+            pattern=$(echo "$pattern" | xargs)
+            
+            # Convert pattern to zsh glob pattern
+            pattern=${pattern%/}  # Remove trailing slash
+            pattern="*/$pattern*"
+            
+            if [[ "$file_path" = ${~pattern} ]]; then
+                excluded=true
+                break
+            fi
+        fi
+    done < "$IGNORE_FILE"
+    
+    $excluded
+}
+
+
 process_kbfolder_init() {
 
     # Create Knowledge base directory if it doesn't exist
@@ -108,6 +141,19 @@ EOF
         log_info "Created $KNOWLEDGE_LIST template file"
     fi
 
+    # Create the ignore file if it doesn't exist
+    if [ ! -f "$IGNORE_FILE" ]; then
+        cat << 'EOF' > "$IGNORE_FILE"
+# Ignore files for knowledge base generation
+# Example:
+# node_modules/
+# *.test.js
+# dist/
+# .git/
+EOF
+        log_info "Created .kbignore file"
+    fi
+
 }
 
 process_file() {
@@ -118,6 +164,12 @@ process_file() {
     for file in $~pattern; do
         if [ -f "$file" ]; then
             local relative_path="${file#./}"
+            
+            if should_exclude "$relative_path"; then
+                log_info "Skipping excluded file: $relative_path"
+                continue
+            fi
+            
             local full_path="$PROJECT_ROOT/$relative_path"
             local ext=$(get_file_extension "$relative_path")
             log_info "Processing: $relative_path"
@@ -232,7 +284,6 @@ process_rules() {
     return 0
 }
 
-
 get_file_url() {
     local file_path="${1:A}"  # Convert to absolute path
     local repo_root="${$(git rev-parse --show-toplevel):A}"
@@ -331,7 +382,6 @@ get_file_url() {
     fi
 }
 
-# Function to get just the URLs
 get_file_urls_only() {
     local file_path="${1:A}"
     local repo_root="${$(git rev-parse --show-toplevel):A}"
@@ -426,6 +476,14 @@ print_header "📂 Processing Documentation Files"
 cd "$SPECS_DIR"
 for file in **/*.{md,mdx}(N.); do
     if [ -f "$file" ]; then
+        local relative_path="${file#$SPECS_DIR/}"
+        
+        # Check if file should be excluded
+        if should_exclude "$relative_path"; then
+            log_info "Skipping excluded file: $relative_path"
+            continue
+        fi
+        
         log_info "Processing: $file"
         {
             cat "$file"
@@ -469,7 +527,17 @@ if [ -d "$PROJECT_ROOT" ]; then
     {
         printf "\n### Project Structure\n\n"
         printf "````text\n"
-        cd "$PROJECT_ROOT" && tree -I "dist|build|coverage|archives|.DS_Store"
+        # Read ignore patterns and create tree exclude pattern
+        local tree_excludes=""
+        while IFS= read -r pattern; do
+            if [ ! -z "$pattern" ] && [[ ! "$pattern" =~ ^#.*$ ]]; then
+                pattern=$(echo "$pattern" | xargs)
+                tree_excludes="$tree_excludes|$pattern"
+            fi
+        done < "$IGNORE_FILE"
+        tree_excludes=${tree_excludes#|}  # Remove leading |
+        
+        cd "$PROJECT_ROOT" && tree -I "dist|build|coverage|archives|.DS_Store${tree_excludes:+|$tree_excludes}"
         printf "````\n\n"
     } >> "$OUTPUT_FILE"
     log_success "Project structure added successfully"

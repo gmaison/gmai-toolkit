@@ -1,5 +1,5 @@
 ---
-date: 2025-02-21 16:50:29
+date: 2025-02-24 16:02:32
 ---
 
 # Project Specifications "Knowledge Base"
@@ -8,7 +8,7 @@ This project specifications will help you understand the project architecture an
 
 It might not be update to date, always refer to code as source of truth.
 
-> Important: Some specifications are in french, and might not be implemented yet in the codebase.
+ 
 
 
 ## Additional Files
@@ -23,25 +23,20 @@ text
 ├── LICENSE
 ├── README.md
 ├── documentation
-│   ├── _header.md
+├── kb_scripts
+│   └── knowledge.sh
+├── knowledge_base
 │   ├── knowledge.md
-│   ├── knowledge.sh
 │   ├── knowledge.txt
-│   └── specifications
+│   └── knowledge_header.md
 ├── node_modules
-│   └── husky
-│       ├── LICENSE
-│       ├── README.md
-│       ├── bin.js
-│       ├── husky
-│       ├── index.d.ts
-│       ├── index.js
-│       └── package.json
+│   └── husky -> .pnpm/husky@8.0.3/node_modules/husky
 ├── package-lock.json
-└── package.json
+├── package.json
+└── pnpm-lock.yaml
 
-5 directories, 15 files
+6 directories, 9 files
 
 
 
-2025-02-21 16:50:29
+2025-02-24 16:02:32

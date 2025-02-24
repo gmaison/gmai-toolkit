@@ -1,4 +1,6 @@
 # Specific files to include in the documentation
 # Example:
 # .cursor/rules/*.mdc
+# .windsurfrules
 # apps/backend/package.json
+

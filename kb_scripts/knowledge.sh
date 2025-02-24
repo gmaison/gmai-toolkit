@@ -1,8 +1,8 @@
 #!/bin/zsh
 
 # Set script directory as working directory
+PROJECT_ROOT=$(git rev-parse --show-toplevel)
 SCRIPT_DIR=${0:a:h}
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Source zsh profile to get environment variables and PATH
 if [ -f "$HOME/.zshrc" ]; then
@@ -12,10 +12,17 @@ fi
 cd "$SCRIPT_DIR" || exit 1
 
 # Configuration
-OUTPUT_FILE="$SCRIPT_DIR/knowledge.md"
-HEADER_FILE="$SCRIPT_DIR/_header.md"
-SPECS_DIR="specifications"
-KNOWLEDGE_LIST="$SCRIPT_DIR/knowledge.txt"
+KB_FILENAME="knowledge.md"
+RELATIVE_KB_DIR="knowledge_base"
+RELATIVE_OUTPUT_FILE="$RELATIVE_KB_DIR/$KB_FILENAME"
+
+KB_DIR="$PROJECT_ROOT/$RELATIVE_KB_DIR"
+OUTPUT_FILE="$KB_DIR/$KB_FILENAME"
+
+HEADER_FILE="$KB_DIR/knowledge_header.md"
+KNOWLEDGE_LIST="$KB_DIR/knowledge.txt"
+SPECS_DIR="$PROJECT_ROOT/documentation"
+
 
 # Initialize counters
 count=0
@@ -61,6 +68,48 @@ get_file_extension() {
     fi
 }
 
+process_kbfolder_init() {
+
+    # Create Knowledge base directory if it doesn't exist
+    # ***************************************************
+    if [ ! -d "$KB_DIR" ]; then
+        mkdir -p "$KB_DIR"
+        log_info "Created Knowledge Base Directory"
+    fi
+
+    # Create the Header file if it doesn't exist
+    # ***************************************************
+    if [ ! -f "$HEADER_FILE" ]; then
+    
+        cat << 'EOF' > $HEADER_FILE
+# Project Specifications "Knowledge Base"
+
+This project specifications will help you understand the project architecture and features.
+
+It might not be update to date, always refer to code as source of truth.
+
+ 
+EOF
+        log_info "Created $HEADER_FILE"
+    fi
+
+    # Create the knowledge.txt if it doesn't exist
+    # ***************************************************
+    if [ ! -f "$KNOWLEDGE_LIST" ]; then
+        
+        cat << 'EOF' > $KNOWLEDGE_LIST
+# Specific files to include in the documentation
+# Example:
+# .cursor/rules/*.mdc
+# .windsurfrules
+# apps/backend/package.json
+
+EOF
+        log_info "Created $KNOWLEDGE_LIST template file"
+    fi
+
+}
+
 process_file() {
     local pattern=$1
     
@@ -86,8 +135,8 @@ process_file() {
 }
 
 process_rules() {
-    local rules_dir=".cursor/rules"
-    local windsurfrules_file=".windsurfrules"
+    local rules_dir="$PROJECT_ROOT/.cursor/rules"
+    local windsurfrules_file="$PROJECT_ROOT/.windsurfrules"
     local temp_rules="/tmp/rules_content.md"
     local found_rules=false
     
@@ -142,10 +191,10 @@ process_rules() {
                 fi
             done < <(find "$rules_dir" -name "*.mdc" -type f 2>/dev/null)
         else
-            log_warning "No .mdc files found in $rules_dir"
+            log_warning "No .mdc files found, skipping"
         fi
     else
-        log_warning "Rules directory '$rules_dir' not found"
+        log_warning "No, Cursor rules directory, skipping"
     fi
     
     # Check for existing .windsurfrules file
@@ -169,7 +218,7 @@ process_rules() {
                 log_warning "Could not create .windsurfrules file"
             fi
         else
-            log_warning "No rules found and no existing .windsurfrules file"
+            log_warning "No Windsurf rules found, skipping"
         fi
     fi
     
@@ -183,13 +232,175 @@ process_rules() {
     return 0
 }
 
+
+get_file_url() {
+    local file_path="${1:A}"  # Convert to absolute path
+    local repo_root="${$(git rev-parse --show-toplevel):A}"
+    
+    # Check if file exists locally
+    if [[ ! -f "$file_path" ]]; then
+        print "Error: File does not exist locally" >&2
+        return 1
+    fi
+    
+    # Check if in git repo
+    if ! git rev-parse --git-dir > /dev/null 2>&1; then
+        print "Error: Not in a git repository" >&2
+        return 1
+    fi
+    
+    # Get relative path using Zsh parameter expansion
+    local rel_path=${file_path#$repo_root/}
+    
+    local remote_url=$(git config --get remote.origin.url)
+    local branch=$(git rev-parse --abbrev-ref HEAD)
+    local commit_hash=$(git rev-parse HEAD)
+    
+    # Extract owner and repo from remote URL
+    local owner=""
+    local repo=""
+    case "$remote_url" in
+        git@github.com:*)
+            remote_url=${remote_url#git@github.com:}
+            remote_url=${remote_url%.git}
+            owner=${remote_url%%/*}
+            repo=${remote_url#*/}
+            ;;
+        https://github.com/*)
+            remote_url=${remote_url#https://github.com/}
+            remote_url=${remote_url%.git}
+            owner=${remote_url%%/*}
+            repo=${remote_url#*/}
+            ;;
+        *)
+            print "Error: Unsupported remote URL format" >&2
+            return 1
+            ;;
+    esac
+    
+    # Check if file is tracked by git
+    local is_tracked=false
+    if git ls-files --error-unmatch "$file_path" > /dev/null 2>&1; then
+        is_tracked=true
+    fi
+    
+    # Check if file has uncommitted changes
+    local has_changes=false
+    if git diff --quiet "$file_path" 2>/dev/null; then
+        has_changes=false
+    else
+        has_changes=true
+    fi
+    
+    # Output status and URLs
+    print "File Status:"
+    print "------------"
+    if [[ "$is_tracked" = false ]]; then
+        print "⚠️  File is not yet tracked by git"
+        print "→ To track: git add ${rel_path}"
+    fi
+    if [[ "$has_changes" = true ]]; then
+        print "⚠️  File has uncommitted changes"
+        print "→ To commit: git commit -m 'your message' ${rel_path}"
+    fi
+    
+    print "\nURLs (after push):"
+    print "----------------"
+    print "Raw URL: https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${rel_path}"
+    print "Web URL: https://github.com/${owner}/${repo}/blob/${branch}/${rel_path}"
+    print "API URLs:"
+    print "- Contents: https://api.github.com/repos/${owner}/${repo}/contents/${rel_path}?ref=${branch}"
+    print "- Git Data: https://api.github.com/repos/${owner}/${repo}/git/blobs/${commit_hash}"
+    
+    print "\nAPI Usage Examples:"
+    print "----------------"
+    print "# Get file metadata and content (Base64 encoded):"
+    print "curl -H \"Accept: application/vnd.github.v3+json\" \\"
+    print "     -H \"Authorization: Bearer \$GITHUB_TOKEN\" \\"
+    print "     https://api.github.com/repos/${owner}/${repo}/contents/${rel_path}?ref=${branch}"
+    
+    print "\n# Get raw file content:"
+    print "curl -H \"Accept: application/vnd.github.v3.raw\" \\"
+    print "     -H \"Authorization: Bearer \$GITHUB_TOKEN\" \\"
+    print "     https://api.github.com/repos/${owner}/${repo}/contents/${rel_path}?ref=${branch}"
+    
+    # Check if branch exists on remote
+    if ! git ls-remote --heads origin "$branch" | grep -q "$branch"; then
+        print "\n⚠️  Branch '$branch' doesn't exist on remote yet"
+        print "→ To push: git push -u origin $branch"
+    fi
+}
+
+# Function to get just the URLs
+get_file_urls_only() {
+    local file_path="${1:A}"
+    local repo_root="${$(git rev-parse --show-toplevel):A}"
+    local rel_path=${file_path#$repo_root/}
+    
+    local remote_url=$(git config --get remote.origin.url)
+    local branch=$(git rev-parse --abbrev-ref HEAD)
+    local commit_hash=$(git rev-parse HEAD)
+    
+    # Better URL parsing
+    local owner=""
+    local repo=""
+    
+    case "$remote_url" in
+        git@github.com:*)
+            remote_url=${remote_url#git@github.com:}
+            remote_url=${remote_url%.git}
+            ;;
+        https://github.com/*)
+            remote_url=${remote_url#https://github.com/}
+            remote_url=${remote_url%.git}
+            ;;
+        *)
+            print "Error: Unsupported remote URL format" >&2
+            return 1
+            ;;
+    esac
+    
+    # Extract owner and repo
+    owner=${remote_url%%/*}
+    repo=${remote_url#*/}
+    
+    print "# URLs for $rel_path:"
+    print "raw=https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${rel_path}"
+    print "web=https://github.com/${owner}/${repo}/blob/${branch}/${rel_path}"
+    print "api_contents=https://api.github.com/repos/${owner}/${repo}/contents/${rel_path}?ref=${branch}"
+    print "api_blob=https://api.github.com/repos/${owner}/${repo}/git/blobs/${commit_hash}"
+}
+
+# Usage examples:
+# 1. Get full info:
+# get_file_url "README.md"
+#
+# 2. Get just the URLs:
+# eval "$(get_file_urls_only "README.md")"
+# echo $raw
+# echo $web
+# echo $api_contents
+# echo $api_blob
+#
+# 3. Use with curl:
+# eval "$(get_file_urls_only "README.md")"
+# curl -H "Authorization: Bearer $GITHUB_TOKEN" "$api_contents"
+
+
+
 # Script header
 print_header "📚 Generating Documentation"
 
-# Initial cleanup
-log_info "Cleaning previous file..."
-rm -f "$OUTPUT_FILE"
+log_info "Checking knowledge base folder"
+process_kbfolder_init
 
+if [ -f "$OUTPUT_FILE" ]; then
+    # Initial cleanup
+    log_info "Cleaning previous file..."
+    rm -f "$OUTPUT_FILE"
+fi
+
+log_info "Creating new $OUTPUT_FILE..."
 # Add YAML frontmatter with generation date
 {
     echo "---"
@@ -209,15 +420,9 @@ else
 fi
 
 # Step 2: Process specification files
-print_header "📂 Processing Specification Files"
+print_header "📂 Processing Documentation Files"
 
-# Create specifications directory if it doesn't exist
-if [ ! -d "$SPECS_DIR" ]; then
-    mkdir -p "$SPECS_DIR"
-    log_info "Created specifications directory"
-fi
-
-# Process specification files using zsh globbing
+# Process documentation files using zsh globbing
 cd "$SPECS_DIR"
 for file in **/*.{md,mdx}(N.); do
     if [ -f "$file" ]; then
@@ -229,29 +434,21 @@ for file in **/*.{md,mdx}(N.); do
         ((count++))
     fi
 done
+
 cd "$SCRIPT_DIR"
 
 # After processing specification files
 print_header "📋 Processing Rules"
-if [ -d "$PROJECT_ROOT/$rules_dir" ]; then
-    process_rules
-else
-    log_warning "Rules directory not found, skipping rules processing"
-fi
+process_rules
 
-# Step 3: Process additional files from knowledge.txt
-if [ ! -f "$KNOWLEDGE_LIST" ]; then
-    # Create knowledge.txt if it doesn't exist
-    touch "$KNOWLEDGE_LIST"
-    echo "# Specific files to include in the documentation" > "$KNOWLEDGE_LIST"
-    echo "# Example:" >> "$KNOWLEDGE_LIST"
-    echo "# .cursor/rules/*.mdc" >> "$KNOWLEDGE_LIST"
-    echo "# apps/backend/package.json" >> "$KNOWLEDGE_LIST"
-    log_info "Created $KNOWLEDGE_LIST template file"
-fi
+#if [ -d "$PROJECT_ROOT/$rules_dir" ]; then
+#else
+#    log_warning "Rules directory not found, skipping rules processing"
+#fi
 
+
+print_header "📦 Processing Additional Files"
 if [ -f "$KNOWLEDGE_LIST" ]; then
-    print_header "📦 Processing Additional Files"
     printf "\n## Additional Files\n\n" >> "$OUTPUT_FILE"
     printf "> ⚠️ **IMPORTANT**: These files must be taken very seriously as they represent the latest up-to-date versions of our codebase. You MUST rely on these versions and their content imperatively.\n\n" >> "$OUTPUT_FILE"
     
@@ -266,9 +463,9 @@ if [ -f "$KNOWLEDGE_LIST" ]; then
     done < "$KNOWLEDGE_LIST"
 fi
 
+print_header "🌳 Project Structure"
 # Add project structure at the end
 if [ -d "$PROJECT_ROOT" ]; then
-    print_header "🌳 Project Structure"
     {
         printf "\n### Project Structure\n\n"
         printf "````text\n"
@@ -316,3 +513,10 @@ if [ -f "$OUTPUT_FILE" ]; then
     git add "$OUTPUT_FILE"
 fi
 
+eval "$(get_file_urls_only "$OUTPUT_FILE")"
+echo "\n\nKnowledge base URLs (for your AI Architect agent): \n"
+echo "URL for raw content: $raw"
+echo "URL for web content: $web"
+echo "API for content    : $api_contents"
+echo "API for blob       : $api_blob"
+echo "\n\n"

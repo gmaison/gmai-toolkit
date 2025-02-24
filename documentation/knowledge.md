@@ -1,5 +1,5 @@
 ---
-date: 2025-02-21 16:50:29
+date: 2025-02-24 15:32:45
 ---
 
 # Project Specifications "Knowledge Base"
@@ -28,20 +28,16 @@ text
 │   ├── knowledge.sh
 │   ├── knowledge.txt
 │   └── specifications
+├── kb_scripts
+│   └── knowledge.sh
 ├── node_modules
-│   └── husky
-│       ├── LICENSE
-│       ├── README.md
-│       ├── bin.js
-│       ├── husky
-│       ├── index.d.ts
-│       ├── index.js
-│       └── package.json
+│   └── husky -> .pnpm/husky@8.0.3/node_modules/husky
 ├── package-lock.json
-└── package.json
+├── package.json
+└── pnpm-lock.yaml
 
-5 directories, 15 files
+6 directories, 10 files
 
 
 
-2025-02-21 16:50:29
+2025-02-24 15:32:45

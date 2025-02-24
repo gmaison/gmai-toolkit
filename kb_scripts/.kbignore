@@ -1,0 +1,6 @@
+# Ignore files for knowledge base generation
+# Example:
+# node_modules/
+# *.test.js
+# dist/
+# .git/

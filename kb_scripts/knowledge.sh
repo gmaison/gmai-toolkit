@@ -50,6 +50,7 @@ typeset -r PROJECT_ROOT=${$(git rev-parse --show-toplevel 2>/dev/null):-.}
 # Initialize default configuration
 KB_FILENAME="knowledge.md"
 KB_DIRNAME="knowledge_base"
+KB_HEADER_FILE=".kbheader"
 IGNORE_FILE=".kbignore"
 INCLUDE_FILE=".kbinclude"
 DOC_DIR="documentation"
@@ -196,7 +197,8 @@ init_config() {
     CONFIG[kb_filename]="${KB_FILENAME:-knowledge.md}"
     CONFIG[KB_DIRNAME]="${KB_DIRNAME:-knowledge_base}"
     CONFIG[ignore_file]="${IGNORE_FILE:-.kbignore}"
-    CONFIG[INCLUDE_FILE]="${INCLUDE_FILE:-.kbforce}"
+    CONFIG[header_file]="${HEADER_FILE:-.kbheader}"
+    CONFIG[include_file]="${INCLUDE_FILE:-.kbinclude}"
     CONFIG[doc_dir]="${DOC_DIR:-documentation}"
     CONFIG[file_perms]="${FILE_PERMS:-$DEFAULT_FILE_PERMS}"
     CONFIG[dir_perms]="${DIR_PERMS:-$DEFAULT_DIR_PERMS}"
@@ -244,10 +246,10 @@ init_paths() {
     # Set readonly paths
     typeset -gr KB_DIR="$PROJECT_ROOT/${CONFIG[KB_DIRNAME]}"
     typeset -gr OUTPUT_FILE="$KB_DIR/${CONFIG[kb_filename]}"
-    typeset -gr HEADER_FILE="$KB_DIR/knowledge_header.md"
-    typeset -gr KNOWLEDGE_LIST="$KB_DIR/.kbinclude"
-    typeset -gr IGNORE_FILE="$SCRIPT_DIR/${CONFIG[ignore_file]}"
-    typeset -gr INCLUDE_FILE="$SCRIPT_DIR/${CONFIG[INCLUDE_FILE]}"
+    
+    typeset -gr HEADER_FILE="$PROJECT_ROOT/${CONFIG[header_file]}"
+    typeset -gr INCLUDE_FILE="$PROJECT_ROOT/${CONFIG[include_file]}"
+    typeset -gr IGNORE_FILE="$PROJECT_ROOT/${CONFIG[ignore_file]}"
     typeset -gr DOC_DIR="$PROJECT_ROOT/${CONFIG[doc_dir]}"
     typeset -gr CODEBASE_DIR="$PROJECT_ROOT/${CONFIG[codebase_dir]}"
     
@@ -386,7 +388,7 @@ should_exclude() {
     return 1
 }
 
-process_kbfolder_init() {
+process_kb_init() {
     local exit_code=0
     local dir_perms=755
     local file_perms=644
@@ -403,11 +405,11 @@ process_kbfolder_init() {
     
     # Initialize required files with secure permissions
     init_file "$HEADER_FILE" "header" "# Project Specifications \"Knowledge Base\"\n\nThis project specifications will help you understand the project architecture and features.\n\nIt might not be up to date, always refer to code as source of truth.\n" || exit_code=$?
-    
-    init_file "$KNOWLEDGE_LIST" "knowledge list" "# Specific files to include in the documentation\n# Example:\n# .cursor/rules/*.mdc\n# .windsurfrules\n# apps/backend/package.json\n" || exit_code=$?
-    
+        
     init_file "$IGNORE_FILE" "ignore" "# Ignore files for knowledge base generation\n# Example:\n# node_modules/\n# *.test.js\n# dist/\n# .git/\n" || exit_code=$?
-    
+
+    init_file "$INCLUDE_FILE" "include" "# Files to include in the knowledge base\n# Example:\n# apps/backend/package.json\n" || exit_code=$?
+
     return $exit_code
 }
 
@@ -439,7 +441,7 @@ init_file() {
     
     if [[ ! -f $file_path ]]; then
         # Create file with secure permissions
-        if ! print -r "$content" > "$file_path" 2>/dev/null; then
+        if ! printf "%b" "$content" > "$file_path" 2>/dev/null; then
             log_error "Failed to create $file_type file: $file_path"
             return 1
         fi
@@ -513,36 +515,31 @@ process_file() {
     cd "$PROJECT_ROOT" || return 1
     
     # Use zsh globbing with error handling
-    local files=($~pattern(N))
-    if (( ${#files} == 0 )); then
-        $VERBOSE && log_warning "No files found matching pattern: $pattern"
+    # Process file directly without globbing since we already have the exact path
+    if [ ! -f "$pattern" ]; then
+        $VERBOSE && log_warning "File not found: $pattern"
         cd "$original_dir"
         return 0
     fi
     
-    for file in $files; do
-        if [[ ! -f $file ]]; then
-            continue
-        fi
-        
-        local relative_path=${file#./}
-        
-        # Check if file should be excluded
-        if should_exclude "$relative_path"; then
-            $VERBOSE && log_info "Skipping excluded file: $relative_path"
-            ((STATS[skipped_files]++))
-            continue
-        fi
-        
-        # Process the file
-        if ! process_single_file "$relative_path"; then
-            ((STATS[errors]++))
-            exit_code=1
-            continue
-        fi
-        
-        ((STATS[processed_files]++))
-    done
+    local relative_path=${pattern#./}
+    
+    # Check if file should be excluded
+    if should_exclude "$relative_path"; then
+        $VERBOSE && log_info "Skipping excluded file: $relative_path"
+        ((STATS[skipped_files]++))
+        cd "$original_dir"
+        return 0
+    fi
+    
+    # Process the file
+    if ! process_single_file "$relative_path"; then
+        ((STATS[errors]++))
+        cd "$original_dir"
+        return 1
+    fi
+    
+    ((STATS[processed_files]++))
     
     # Restore original directory
     cd "$original_dir"
@@ -1135,12 +1132,13 @@ process_documentation() {
         return 1
     fi
     
-    # Process documentation files using zsh globbing
-    local file
-    for file in **/*.{md,mdx}(N.); do
+    # Process documentation files using find from project root
+    cd "$PROJECT_ROOT" || return 1
+    find "$DOC_DIR" -type f \( -name "*.md" -o -name "*.mdx" \) -print0 | while IFS= read -r -d $'\0' file; do
         if [ -f "$file" ]; then
             $VERBOSE && log_info "File detected: $file"
-            local relative_path="${file#$DOC_DIR/}"
+            local relative_path="${file#$PROJECT_ROOT/}"
+            file="${file#$PROJECT_ROOT/}"
             
             # Check if file should be excluded
             if should_exclude "$relative_path"; then
@@ -1171,8 +1169,8 @@ process_additional_files() {
     print_header "📦 Processing Additional Files"
     local count=0
     
-    if [ ! -f "$KNOWLEDGE_LIST" ]; then
-        $VERBOSE && log_warning "Knowledge list not found: $KNOWLEDGE_LIST"
+    if [ ! -f "$INCLUDE_FILE" ]; then
+        $VERBOSE && log_warning "Include file not found: $INCLUDE_FILE"
         return 0
     fi
     
@@ -1199,7 +1197,7 @@ process_additional_files() {
                 ((count++))
             fi
         fi
-    done < "$KNOWLEDGE_LIST"
+    done < "$INCLUDE_FILE"
     
     $VERBOSE && log_success "Processed $count additional files"
     return 0
@@ -1259,7 +1257,7 @@ main() {
     printf "    %s: %s\n" "Documentation Dir" "$DOC_DIR"
     printf "    %s: %s\n" "Codebase Dir" "$CODEBASE_DIR"
     printf "    %s: %s\n" "Ignore File" "$IGNORE_FILE"
-    printf "    %s: %s\n" "Force File" "$INCLUDE_FILE"
+    printf "    %s: %s\n" "Include File" "$INCLUDE_FILE"
     printf "    %s: %s\n" "Output File" "$OUTPUT_FILE"
     printf "    %s: %s\n" "Process Mode" "$PROCESS_MODE"
     printf "    %s: %s\n" "Verbose" "$VERBOSE"
@@ -1267,7 +1265,7 @@ main() {
 
 
     # Initialize knowledge base structure
-    process_kbfolder_init || exit_code=$?
+    process_kb_init || exit_code=$?
     [ $exit_code -ne 0 ] && return $exit_code
     
     # Initialize output file
